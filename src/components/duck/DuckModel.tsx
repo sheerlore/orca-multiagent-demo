@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import type * as THREE from 'three';
 import type { Task, TaskStatus } from '../../types/task';
 import { duckGeometries } from './geometries';
 import { Headband, Crown, FloatRing, Sparkles } from './accessories';
@@ -11,6 +12,11 @@ export interface DuckModelProps {
   title?: string;
   task?: Task;
   showTitleTag?: boolean;
+  modelGroupRef?: React.Ref<THREE.Group>;
+  tailRef?: React.Ref<THREE.Mesh>;
+  headRef?: React.Ref<THREE.Group>;
+  leftFootRef?: React.Ref<THREE.Mesh>;
+  rightFootRef?: React.Ref<THREE.Mesh>;
 }
 
 /**
@@ -25,6 +31,11 @@ export function DuckModel({
   title: propTitle,
   task,
   showTitleTag = true,
+  modelGroupRef,
+  tailRef,
+  headRef,
+  leftFootRef,
+  rightFootRef,
 }: DuckModelProps) {
   const status = propStatus ?? task?.status ?? 'todo';
   const duckColor = propDuckColor ?? task?.duckColor ?? '#facc15';
@@ -35,7 +46,7 @@ export function DuckModel({
   const emissiveIntensity = isSelected ? 0.35 : 0;
 
   return (
-    <group data-testid="duck-model">
+    <group ref={modelGroupRef} data-testid="duck-model">
       {/* まるい胴体 + 尾羽 */}
       <group data-testid="duck-body">
         <mesh geometry={duckGeometries.body} scale={[1.1, 0.95, 0.9]} castShadow receiveShadow>
@@ -50,6 +61,7 @@ export function DuckModel({
 
         {/* 尾羽 */}
         <mesh
+          ref={tailRef}
           geometry={duckGeometries.tail}
           position={[-0.38, 0.15, 0]}
           rotation={[0, 0, Math.PI / 3]}
@@ -66,7 +78,7 @@ export function DuckModel({
       </group>
 
       {/* 頭部（頭 + つぶらな目） */}
-      <group data-testid="duck-head" position={[0.26, 0.32, 0]}>
+      <group ref={headRef} data-testid="duck-head" position={[0.26, 0.32, 0]}>
         <mesh geometry={duckGeometries.head} scale={[1, 1, 0.95]} castShadow>
           <meshStandardMaterial
             color={duckColor}
@@ -137,6 +149,7 @@ export function DuckModel({
       {status !== 'done' && (
         <group data-testid="duck-feet">
           <mesh
+            ref={leftFootRef}
             data-testid="duck-foot-left"
             geometry={duckGeometries.foot}
             position={[0.05, -0.36, 0.16]}
@@ -146,6 +159,7 @@ export function DuckModel({
             <meshStandardMaterial color="#ea580c" roughness={0.4} />
           </mesh>
           <mesh
+            ref={rightFootRef}
             data-testid="duck-foot-right"
             geometry={duckGeometries.foot}
             position={[0.05, -0.36, -0.16]}

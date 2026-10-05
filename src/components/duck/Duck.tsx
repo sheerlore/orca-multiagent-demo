@@ -1,9 +1,10 @@
 import { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
 import type * as THREE from 'three';
 import type { Task } from '../../types/task';
 import { getDuckSpawnPosition } from '../../utils/sceneMath';
 import { DuckModel } from './DuckModel';
+import { DuckRipple } from './DuckRipple';
+import { useDuckAI } from './useDuckAI';
 
 export interface DuckProps {
   task: Task;
@@ -14,28 +15,35 @@ export interface DuckProps {
 
 /**
  * 3Dシーン上に配置されるアヒルエンティティ。
- * スポーン位置計算、浮遊・ヨチヨチ歩きアニメーション、ポインターイベント、
- * および DuckModel のレンダリングを担当します。
+ * 自律歩行AIステートマシン（useDuckAI）により、IDLE/WALKING/SWIMMINGを自動遷移し、
+ * 境界制御およびアヒル同士の反発制御を行います。
  */
 export function Duck({ task, index, isSelected, onSelect }: DuckProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const modelGroupRef = useRef<THREE.Group>(null);
+  const headRef = useRef<THREE.Group>(null);
+  const tailRef = useRef<THREE.Mesh>(null);
+  const leftFootRef = useRef<THREE.Mesh>(null);
+  const rightFootRef = useRef<THREE.Mesh>(null);
+  const rippleRef = useRef<THREE.Mesh>(null);
 
-  // ステータスに応じたワールド配置位置を計算
+  // ステータスに応じた初期スポーン位置
   const [baseX, baseY, baseZ] = useMemo(
     () => getDuckSpawnPosition(task.status, index),
     [task.status, index]
   );
-  const isPond = task.status === 'done';
 
-  useFrame((state) => {
-    if (!groupRef.current) return;
-    const t = state.clock.getElapsedTime();
-    // 泳ぎ・歩行の浮遊アニメーション
-    const speed = task.status === 'in-progress' ? 4 : isPond ? 1.5 : 2;
-    const height = Math.sin(t * speed + index) * 0.08;
-    groupRef.current.position.y = baseY + height;
-    // 左右のヨチヨチ首振り・回遊揺れ
-    groupRef.current.rotation.y = Math.sin(t * 1.5 + index) * 0.2;
+  // 自律歩行AIフック
+  useDuckAI({
+    task,
+    index,
+    groupRef,
+    modelGroupRef,
+    headRef,
+    tailRef,
+    leftFootRef,
+    rightFootRef,
+    rippleRef,
   });
 
   return (
@@ -44,7 +52,19 @@ export function Duck({ task, index, isSelected, onSelect }: DuckProps) {
       position={[baseX, baseY, baseZ]}
       onClick={(e) => {
         e.stopPropagation();
-        onSelect([baseX, baseY, baseZ]);
+        if (
+          groupRef.current &&
+          'position' in groupRef.current &&
+          groupRef.current.position
+        ) {
+          onSelect([
+            groupRef.current.position.x,
+            groupRef.current.position.y,
+            groupRef.current.position.z,
+          ]);
+        } else {
+          onSelect([baseX, baseY, baseZ]);
+        }
       }}
       onPointerOver={(e) => {
         e.stopPropagation();
@@ -55,7 +75,16 @@ export function Duck({ task, index, isSelected, onSelect }: DuckProps) {
       }}
       data-testid={`duck-${task.id}`}
     >
-      <DuckModel task={task} isSelected={isSelected} />
+      <DuckModel
+        task={task}
+        isSelected={isSelected}
+        modelGroupRef={modelGroupRef}
+        headRef={headRef}
+        tailRef={tailRef}
+        leftFootRef={leftFootRef}
+        rightFootRef={rightFootRef}
+      />
+      {task.status === 'done' && <DuckRipple rippleRef={rippleRef} />}
     </group>
   );
 }
