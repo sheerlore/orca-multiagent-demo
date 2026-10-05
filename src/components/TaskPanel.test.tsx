@@ -11,6 +11,7 @@ describe('TaskPanel Component', () => {
         {
           id: 'test-1',
           title: 'テストタスク1',
+          description: '',
           status: 'todo',
           priority: 'medium',
           dueDate: null,
@@ -51,9 +52,11 @@ describe('TaskPanel Component', () => {
         {
           id: 't-1',
           title: '未完了タスク',
+          description: '',
           status: 'todo',
           priority: 'medium',
           dueDate: null,
+          duckColor: '#facc15',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           completedAt: null,
@@ -61,9 +64,11 @@ describe('TaskPanel Component', () => {
         {
           id: 't-2',
           title: '完了済タスク',
+          description: '',
           status: 'done',
           priority: 'high',
           dueDate: null,
+          duckColor: '#4ade80',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           completedAt: new Date().toISOString(),
