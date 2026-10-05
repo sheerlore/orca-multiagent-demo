@@ -80,6 +80,7 @@ export function saveToStorage(tasks: Task[], settings: UserSettings): void {
       settings,
     };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    window.localStorage.setItem('quacktrack-tasks', JSON.stringify(payload));
   } catch (err) {
     console.error('Failed to save to localStorage:', err);
   }
@@ -501,3 +502,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     });
   },
 }));
+
+if (typeof window !== 'undefined') {
+  (window as unknown as { __quacktrack_task_store?: typeof useTaskStore }).__quacktrack_task_store =
+    useTaskStore;
+}

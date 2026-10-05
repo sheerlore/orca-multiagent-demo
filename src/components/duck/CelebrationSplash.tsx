@@ -54,10 +54,7 @@ export function CelebrationSplash({
         mesh.scale.set(scale, scale, 1);
       }
       if ('material' in mesh && mesh.material && 'opacity' in mesh.material) {
-        (mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(
-          0,
-          (1 - outerProgress) * 0.5
-        );
+        (mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, (1 - outerProgress) * 0.5);
       }
     }
 
@@ -82,12 +79,7 @@ export function CelebrationSplash({
         data-testid="splash-inner-ring"
       >
         <ringGeometry args={[0.3, 0.45, 32]} />
-        <meshBasicMaterial
-          color="#e0f2fe"
-          transparent
-          opacity={0.7}
-          depthWrite={false}
-        />
+        <meshBasicMaterial color="#e0f2fe" transparent opacity={0.7} depthWrite={false} />
       </mesh>
 
       {/* 外側波紋リング */}
@@ -98,12 +90,7 @@ export function CelebrationSplash({
         data-testid="splash-outer-ring"
       >
         <ringGeometry args={[0.5, 0.65, 32]} />
-        <meshBasicMaterial
-          color="#38bdf8"
-          transparent
-          opacity={0.5}
-          depthWrite={false}
-        />
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.5} depthWrite={false} />
       </mesh>
     </group>
   );

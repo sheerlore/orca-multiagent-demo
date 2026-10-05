@@ -129,18 +129,10 @@ export function DuckModel({
         </mesh>
 
         {/* 目（左・右） */}
-        <mesh
-          geometry={duckGeometries.eye}
-          position={[0.1, 0.08, 0.18]}
-          rotation={[0, 0.2, 0]}
-        >
+        <mesh geometry={duckGeometries.eye} position={[0.1, 0.08, 0.18]} rotation={[0, 0.2, 0]}>
           <meshStandardMaterial color="#1e293b" roughness={0.1} />
         </mesh>
-        <mesh
-          geometry={duckGeometries.eye}
-          position={[0.1, 0.08, -0.18]}
-          rotation={[0, -0.2, 0]}
-        >
+        <mesh geometry={duckGeometries.eye} position={[0.1, 0.08, -0.18]} rotation={[0, -0.2, 0]}>
           <meshStandardMaterial color="#1e293b" roughness={0.1} />
         </mesh>
 
@@ -234,12 +226,7 @@ export function DuckModel({
       {isAttentive && <HoverIndicator />}
 
       {/* 頭上タスクタイトルタグ */}
-      {showTitleTag && title && (
-        <DuckTitleTag
-          title={title}
-          isSelected={isSelected}
-        />
-      )}
+      {showTitleTag && title && <DuckTitleTag title={title} isSelected={isSelected} />}
     </group>
   );
 }
