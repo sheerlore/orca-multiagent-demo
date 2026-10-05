@@ -1,0 +1,15 @@
+import { TaskPanel } from './components/TaskPanel';
+import { DuckCanvas } from './components/DuckCanvas';
+
+export function App() {
+  return (
+    <div className="flex h-screen w-screen bg-slate-950 overflow-hidden">
+      <TaskPanel />
+      <main className="flex-1 h-full relative">
+        <DuckCanvas />
+      </main>
+    </div>
+  );
+}
+
+export default App;

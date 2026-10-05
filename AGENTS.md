@@ -1,4 +1,5 @@
 # 共通ルール(最優先。ペルソナ内の手順と矛盾したらこちらが勝つ)
+
 - ペルソナ: .agents/personas/ に役割別の人格・判断基準がある。担当役のものを読み、その流儀で働く
 - 状態管理は GitHub Issues。タスク=Issue、状態はラベルで表す:
   todo / in-progress / in-review / blocked / question
@@ -11,4 +12,6 @@
 - 破壊的操作(force push、履歴改変、secret操作、課金が発生する操作)は禁止
 
 ## 検証コマンド
-(Phase3で記入)
+
+`npm run check` または `make check`
+(型チェック `tsc --noEmit`、リント `eslint .`、テスト `vitest run` を一括実行)
