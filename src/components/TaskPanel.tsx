@@ -72,11 +72,17 @@ export function TaskPanel({ isOpen = true, onClose }: TaskPanelProps) {
     return () => clearTimeout(timer);
   }, [undoToast]);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!newTitle.trim()) return;
-    addTask(newTitle.trim(), priority);
+    const form = e.currentTarget;
+    const input = form.querySelector<HTMLInputElement>('input[type="text"]');
+    const titleToCreate = (input?.value || newTitle).trim();
+    if (!titleToCreate) return;
+    addTask(titleToCreate, priority);
     setNewTitle('');
+    if (input) {
+      input.value = '';
+    }
   };
 
   const handleDelete = (task: Task) => {

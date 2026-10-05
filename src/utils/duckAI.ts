@@ -1,18 +1,10 @@
 import { GRASS_BOUNDS, POND_BOUNDS } from '../constants/scene';
 import type { Task, TaskStatus } from '../types/task';
 import { duckPositionRegistry } from './duckPositionRegistry';
-import {
-  calculateUrgency,
-  type UrgencyInfo,
-  type UrgencyLevel,
-} from './urgency';
+import { calculateUrgency, type UrgencyInfo, type UrgencyLevel } from './urgency';
 
 export type DuckAIState =
-  | 'IDLE'
-  | 'WALKING'
-  | 'SWIMMING'
-  | 'CELEBRATING_JUMP'
-  | 'CELEBRATING_MARCH';
+  'IDLE' | 'WALKING' | 'SWIMMING' | 'CELEBRATING_JUMP' | 'CELEBRATING_MARCH';
 
 export interface Vector2D {
   x: number;
@@ -505,8 +497,7 @@ export class DuckAIController {
   step(delta: number, neighbors: Vector2D[], task: Task): AnimationPose {
     this.totalTime += delta;
     const isDone = task.status === 'done';
-    const isCelebrating =
-      this.state === 'CELEBRATING_JUMP' || this.state === 'CELEBRATING_MARCH';
+    const isCelebrating = this.state === 'CELEBRATING_JUMP' || this.state === 'CELEBRATING_MARCH';
 
     // 外部からのタスクステータス切り替え同期（セレブレーション実行中は上書きしない）
     if (isDone && !this.isPond && !isCelebrating) {
@@ -555,7 +546,11 @@ export class DuckAIController {
       } else {
         // 目標方向へのSlerp回転補間 (スピードが速い時は素早く旋回)
         const targetHeading = calculateHeadingAngle(this.position, this.target);
-        this.heading = slerpAngle(this.heading, targetHeading, 6.0 * delta * Math.min(2.0, speedMultiplier));
+        this.heading = slerpAngle(
+          this.heading,
+          targetHeading,
+          6.0 * delta * Math.min(2.0, speedMultiplier)
+        );
 
         // 前進移動
         const moveSpeed = this.baseSpeed * speedMultiplier;
@@ -573,11 +568,7 @@ export class DuckAIController {
           z: this.position.z + vz * delta,
         };
 
-        const { clampedPos, hitBoundary } = enforceBounds(
-          newPos,
-          { x: vx, z: vz },
-          bounds
-        );
+        const { clampedPos, hitBoundary } = enforceBounds(newPos, { x: vx, z: vz }, bounds);
 
         this.position.x = clampedPos.x;
         this.position.z = clampedPos.z;
@@ -669,11 +660,7 @@ export class DuckAIController {
         z: this.position.z + vz * delta,
       };
 
-      const { clampedPos, hitBoundary } = enforceBounds(
-        newPos,
-        { x: vx, z: vz },
-        bounds
-      );
+      const { clampedPos, hitBoundary } = enforceBounds(newPos, { x: vx, z: vz }, bounds);
 
       this.position.x = clampedPos.x;
       this.position.z = clampedPos.z;

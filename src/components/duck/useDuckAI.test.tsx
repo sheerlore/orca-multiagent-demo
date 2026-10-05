@@ -19,8 +19,7 @@ vi.mock('@react-three/drei', () => ({
 
 // R3Fのモック
 let recordedFrameCallback:
-  | ((state: { clock: { getElapsedTime: () => number } }, delta: number) => void)
-  | null = null;
+  ((state: { clock: { getElapsedTime: () => number } }, delta: number) => void) | null = null;
 
 vi.mock('@react-three/fiber', () => ({
   useFrame: (cb: (state: { clock: { getElapsedTime: () => number } }, delta: number) => void) => {
@@ -137,11 +136,7 @@ describe('useDuckAI & Duck Component Integration', () => {
       });
 
       return (
-        <div
-          data-testid="hook-info"
-          data-state={getAIState()}
-          data-pos-x={controller.position.x}
-        />
+        <div data-testid="hook-info" data-state={getAIState()} data-pos-x={controller.position.x} />
       );
     }
 

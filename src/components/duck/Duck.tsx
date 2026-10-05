@@ -30,14 +30,7 @@ export interface DuckProps {
  * タスク詳細ドロワーとの双方向連動、期限(DueDate)に応じた歩行速度・羽ばたきアニメーション・3D感情エフェクト、
  * およびタスク完了時のセレブレーション（宙返り・紙吹雪・池移動・Web Audio）を提供します。
  */
-export function Duck({
-  task,
-  index,
-  isSelected,
-  isHovered = false,
-  onSelect,
-  onHover,
-}: DuckProps) {
+export function Duck({ task, index, isSelected, isHovered = false, onSelect, onHover }: DuckProps) {
   const groupRef = useRef<THREE.Group>(null);
   const modelGroupRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Group>(null);
@@ -120,11 +113,7 @@ export function Duck({
           setIsQuacking(true);
           setTimeout(() => setIsQuacking(false), 700);
 
-          if (
-            groupRef.current &&
-            'position' in groupRef.current &&
-            groupRef.current.position
-          ) {
+          if (groupRef.current && 'position' in groupRef.current && groupRef.current.position) {
             onSelect([
               groupRef.current.position.x,
               groupRef.current.position.y,
@@ -189,18 +178,12 @@ export function Duck({
 
       {/* タスク完了時の紙吹雪パーティクル演出 */}
       {confettiPos && (
-        <CelebrationConfetti
-          position={confettiPos}
-          onComplete={() => setConfettiPos(null)}
-        />
+        <CelebrationConfetti position={confettiPos} onComplete={() => setConfettiPos(null)} />
       )}
 
       {/* 池到達着水時の「ポチャン！」スプラッシュ波紋演出 */}
       {splashPos && (
-        <CelebrationSplash
-          position={splashPos}
-          onComplete={() => setSplashPos(null)}
-        />
+        <CelebrationSplash position={splashPos} onComplete={() => setSplashPos(null)} />
       )}
     </>
   );

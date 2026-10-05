@@ -114,6 +114,22 @@ export function CameraController({ enablePanClamp = true }: CameraControllerProp
         controls.update();
       }
     }
+
+    if (typeof window !== 'undefined') {
+      (
+        window as unknown as {
+          __quacktrack_camera?: {
+            position: [number, number, number];
+            target: [number, number, number];
+            isResetting: boolean;
+          };
+        }
+      ).__quacktrack_camera = {
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        target: [controls.target.x, controls.target.y, controls.target.z],
+        isResetting: isResettingRef.current,
+      };
+    }
   });
 
   return (

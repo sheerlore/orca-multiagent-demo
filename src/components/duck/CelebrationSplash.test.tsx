@@ -3,8 +3,7 @@ import { render, screen, act } from '@testing-library/react';
 import { CelebrationSplash } from './CelebrationSplash';
 
 let recordedFrameCallback:
-  | ((state: { clock: { getElapsedTime: () => number } }, delta: number) => void)
-  | null = null;
+  ((state: { clock: { getElapsedTime: () => number } }, delta: number) => void) | null = null;
 
 vi.mock('@react-three/fiber', () => ({
   useFrame: (cb: (state: { clock: { getElapsedTime: () => number } }, delta: number) => void) => {
@@ -27,9 +26,7 @@ describe('CelebrationSplash Component', () => {
 
   it('duration経過時にonCompleteが呼び出され、コンポーネントが破棄される', () => {
     const onComplete = vi.fn();
-    const { rerender } = render(
-      <CelebrationSplash duration={0.8} onComplete={onComplete} />
-    );
+    const { rerender } = render(<CelebrationSplash duration={0.8} onComplete={onComplete} />);
 
     expect(screen.getByTestId('celebration-splash')).toBeInTheDocument();
 

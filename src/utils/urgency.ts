@@ -1,12 +1,6 @@
 import type { TaskStatus } from '../types/task';
 
-export type UrgencyLevel =
-  | 'relaxed'
-  | 'normal'
-  | 'hurried'
-  | 'panicked'
-  | 'critical'
-  | 'overdue';
+export type UrgencyLevel = 'relaxed' | 'normal' | 'hurried' | 'panicked' | 'critical' | 'overdue';
 
 export interface UrgencyInfo {
   urgencyLevel: UrgencyLevel;

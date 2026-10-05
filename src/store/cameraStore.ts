@@ -45,3 +45,9 @@ export const useCameraStore = create<CameraState>((set) => ({
       targetFocus: null,
     }),
 }));
+
+if (typeof window !== 'undefined') {
+  (
+    window as unknown as { __quacktrack_camera_store?: typeof useCameraStore }
+  ).__quacktrack_camera_store = useCameraStore;
+}

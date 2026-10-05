@@ -3,11 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import type * as THREE from 'three';
 import type { Task } from '../../types/task';
 import { getDuckSpawnPosition } from '../../utils/sceneMath';
-import {
-  DuckAIController,
-  type DuckAIState,
-  duckPositionRegistry,
-} from '../../utils/duckAI';
+import { DuckAIController, type DuckAIState, duckPositionRegistry } from '../../utils/duckAI';
 import { calculateUrgency, type UrgencyInfo } from '../../utils/urgency';
 
 export interface UseDuckAIOptions {
@@ -53,10 +49,7 @@ export function useDuckAI({
   onCelebrationStart,
   onSplash,
 }: UseDuckAIOptions): UseDuckAIReturn {
-  const initialPos = useMemo(
-    () => getDuckSpawnPosition(task.status, index),
-    [task.status, index]
-  );
+  const initialPos = useMemo(() => getDuckSpawnPosition(task.status, index), [task.status, index]);
 
   const urgency = useMemo(
     () => calculateUrgency(task.dueDate, task.status),
