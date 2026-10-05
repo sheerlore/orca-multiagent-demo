@@ -1,0 +1,154 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useFrame } from '@react-three/fiber';
+import type * as THREE from 'three';
+import type { Task } from '../../types/task';
+import { getDuckSpawnPosition } from '../../utils/sceneMath';
+import {
+  DuckAIController,
+  type DuckAIState,
+  duckPositionRegistry,
+} from '../../utils/duckAI';
+
+export interface UseDuckAIOptions {
+  task: Task;
+  index: number;
+  groupRef: React.RefObject<THREE.Group | null>;
+  modelGroupRef?: React.RefObject<THREE.Group | null>;
+  headRef?: React.RefObject<THREE.Group | null>;
+  tailRef?: React.RefObject<THREE.Mesh | null>;
+  leftFootRef?: React.RefObject<THREE.Mesh | null>;
+  rightFootRef?: React.RefObject<THREE.Mesh | null>;
+  rippleRef?: React.RefObject<THREE.Mesh | null>;
+}
+
+export interface UseDuckAIReturn {
+  controller: DuckAIController;
+  getAIState: () => DuckAIState;
+}
+
+/**
+ * アヒルの自律歩行AIステートマシンフック (useDuckAI)。
+ * React再レンダリングを回避し、useFrame内で直接Three.jsの各Mesh/Group Refを操作します。
+ * 最大30羽のアヒルが存在しても60FPSを維持できるよう設計されています。
+ */
+export function useDuckAI({
+  task,
+  index,
+  groupRef,
+  modelGroupRef,
+  headRef,
+  tailRef,
+  leftFootRef,
+  rightFootRef,
+  rippleRef,
+}: UseDuckAIOptions): UseDuckAIReturn {
+  const initialPos = useMemo(
+    () => getDuckSpawnPosition(task.status, index),
+    [task.status, index]
+  );
+
+  // 初期化時のみコントローラーを生成し、以降は再レンダリングを発生させず同一参照を維持
+  const [controller] = useState(
+    () =>
+      new DuckAIController({
+        id: task.id,
+        status: task.status,
+        index,
+        initialPos,
+      })
+  );
+
+  // タスクステータス変更時の同期（草原 <-> 池）
+  useEffect(() => {
+    if (task.status === 'done') {
+      const pondPos = getDuckSpawnPosition('done', index);
+      controller.syncToPond(pondPos);
+    } else {
+      const grassPos = getDuckSpawnPosition(task.status, index);
+      controller.syncToGrass(grassPos);
+    }
+  }, [task.status, index, controller]);
+
+  // 位置レジストリへの登録とアンマウント時のクリーンアップ
+  useEffect(() => {
+    duckPositionRegistry.register(
+      task.id,
+      controller.position.x,
+      controller.position.y,
+      controller.position.z,
+      task.status
+    );
+
+    return () => {
+      duckPositionRegistry.unregister(task.id);
+    };
+  }, [task.id, task.status, controller]);
+
+  useFrame((state, delta) => {
+    const group = groupRef.current;
+    if (!group) return;
+
+    // タブ非アクティブ時等の極端に大きなdelta（フレーム落ち）を防止
+    const dt = Math.min(delta, 0.1);
+
+    // 近傍アヒル座標の取得（他エリアのアヒルは除外）
+    const neighbors = duckPositionRegistry.getNeighbors(task.id, task.status);
+
+    // AIステートマシン更新＆ポーズ計算
+    const pose = controller.step(dt, neighbors, task);
+
+    // レジストリ座標の更新
+    duckPositionRegistry.update(
+      task.id,
+      controller.position.x,
+      controller.position.y,
+      controller.position.z,
+      task.status
+    );
+
+    // 1. ルートグループの位置・方向（Yaw）を更新
+    group.position.set(controller.position.x, controller.position.y, controller.position.z);
+    group.rotation.y = controller.heading;
+
+    // 2. 身体のロッキング（左右揺れ）＆ついばみ（前傾ピッチ）
+    if (modelGroupRef?.current) {
+      modelGroupRef.current.rotation.x = pose.bodyRoll;
+      modelGroupRef.current.rotation.z = pose.peckPitch;
+    }
+
+    // 3. 尾羽フリフリ
+    if (tailRef?.current) {
+      tailRef.current.rotation.y = pose.tailWiggle;
+    }
+
+    // 4. 首かしげ＆首振り
+    if (headRef?.current) {
+      headRef.current.rotation.x = pose.headTilt;
+      headRef.current.rotation.y = pose.headYaw;
+    }
+
+    // 5. 足の交互スイング（歩行時のみ。水泳時は非表示のためrefはnull）
+    if (leftFootRef?.current) {
+      leftFootRef.current.rotation.z = pose.leftFootRotZ;
+    }
+    if (rightFootRef?.current) {
+      rightFootRef.current.rotation.z = pose.rightFootRotZ;
+    }
+
+    // 6. 水泳時の足元波紋エフェクト
+    if (rippleRef?.current && controller.state === 'SWIMMING') {
+      const progress = (state.clock.getElapsedTime() * 1.4 + controller.seed) % 1;
+      const scale = 0.5 + progress * 1.3;
+      rippleRef.current.scale.set(scale, scale, 1);
+      const material = rippleRef.current.material as THREE.MeshBasicMaterial;
+      if (material) {
+        material.opacity = Math.max(0, (1 - progress) * 0.35);
+      }
+    }
+  });
+
+  return {
+    controller,
+    getAIState: () => controller.state,
+  };
+}
