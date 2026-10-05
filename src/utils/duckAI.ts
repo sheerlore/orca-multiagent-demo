@@ -1,6 +1,11 @@
 import { GRASS_BOUNDS, POND_BOUNDS } from '../constants/scene';
 import type { Task, TaskStatus } from '../types/task';
 import { duckPositionRegistry } from './duckPositionRegistry';
+import {
+  calculateUrgency,
+  type UrgencyInfo,
+  type UrgencyLevel,
+} from './urgency';
 
 export type DuckAIState =
   | 'IDLE'
@@ -30,6 +35,11 @@ export interface AnimationPose {
   leftFootRotZ: number; // 足の交互回転 (Z軸回転)
   rightFootRotZ: number;
   bobY: number; // 上下動オフセット
+  leftWingRotX: number; // 左翼羽ばたき (X軸回転)
+  rightWingRotX: number; // 右翼羽ばたき (X軸回転)
+  leftWingRotZ: number; // 左翼開き (Z軸回転)
+  rightWingRotZ: number; // 右翼開き (Z軸回転)
+  wingFlapAngle: number; // 羽ばたき角度
 }
 
 /**
@@ -183,47 +193,48 @@ export function calculateSpeedMultiplier(
   task: Task,
   now: number = Date.now()
 ): { speedMultiplier: number; animSpeedMultiplier: number } {
-  if (task.status === 'done') {
-    return { speedMultiplier: 0.6, animSpeedMultiplier: 0.6 };
-  }
-  if (!task.dueDate) {
-    return { speedMultiplier: 1.0, animSpeedMultiplier: 1.0 };
-  }
-
-  const dueMs = new Date(task.dueDate).getTime();
-  if (Number.isNaN(dueMs)) {
-    return { speedMultiplier: 1.0, animSpeedMultiplier: 1.0 };
-  }
-
-  const diffHours = (dueMs - now) / (1000 * 60 * 60);
-
-  if (diffHours < 0) {
-    // 期限超過 (Overdue): 2.0x
-    return { speedMultiplier: 2.0, animSpeedMultiplier: 2.0 };
-  }
-  if (diffHours <= 4) {
-    // 0〜4時間 (直前パニック): 2.5x
-    return { speedMultiplier: 2.5, animSpeedMultiplier: 2.5 };
-  }
-  if (diffHours <= 24) {
-    // 4〜24時間 (焦り気味): 1.8x
-    return { speedMultiplier: 1.8, animSpeedMultiplier: 1.8 };
-  }
-  if (diffHours <= 48) {
-    // 24〜48時間 (やや早足): 1.3x
-    return { speedMultiplier: 1.3, animSpeedMultiplier: 1.3 };
-  }
-  // 48時間以上 (余裕マイペース): 1.0x
-  return { speedMultiplier: 1.0, animSpeedMultiplier: 1.0 };
+  const urgency = calculateUrgency(task.dueDate, task.status, new Date(now));
+  return {
+    speedMultiplier: urgency.speedMultiplier,
+    animSpeedMultiplier: urgency.animSpeedMultiplier,
+  };
 }
 
 /**
- * よちよち歩きアニメーション計算（左右ロッキング＋足の交互回転）
+ * よちよち歩きアニメーション計算（左右ロッキング＋足の交互回転＋緊急度羽ばたき）
  */
-export function calculateWaddlePose(walkPhase: number): AnimationPose {
-  const roll = Math.sin(walkPhase) * 0.16;
+export function calculateWaddlePose(
+  walkPhase: number,
+  urgencyLevel: UrgencyLevel = 'normal',
+  totalTime = 0
+): AnimationPose {
+  // 緊急度に応じた羽ばたき角度・周波数の計算
+  let wingFlapAngle = 0;
+  let bobMultiplier = 1.0;
+  let rollMultiplier = 1.0;
+
+  if (urgencyLevel === 'critical') {
+    // 4時間未満（critical）: 激しい羽ばたき（wingFlapSpeedが超高速 36 rad/s）+ 猛ダッシュボビング
+    wingFlapAngle = Math.sin(totalTime * 36.0) * 0.55;
+    bobMultiplier = 1.6;
+    rollMultiplier = 1.35;
+  } else if (urgencyLevel === 'panicked') {
+    // 4〜24時間（panicked）: 焦り気味のパタパタ羽ばたき
+    wingFlapAngle = Math.sin(totalTime * 18.0) * 0.28;
+    bobMultiplier = 1.25;
+    rollMultiplier = 1.15;
+  } else if (urgencyLevel === 'overdue') {
+    // 期限超過（overdue）: 怒りのプンプク足踏み・羽ばたき
+    wingFlapAngle = Math.sin(totalTime * 12.0) * 0.18;
+    bobMultiplier = 1.3;
+  } else if (urgencyLevel === 'hurried') {
+    // 24〜48時間（hurried）: やや早足・微かな羽の浮き
+    wingFlapAngle = Math.sin(totalTime * 10.0) * 0.1;
+  }
+
+  const roll = Math.sin(walkPhase) * 0.16 * rollMultiplier;
   const footSwing = Math.sin(walkPhase) * 0.45;
-  const bob = Math.abs(Math.sin(walkPhase)) * 0.04;
+  const bob = Math.abs(Math.sin(walkPhase)) * 0.04 * bobMultiplier;
 
   return {
     bodyRoll: roll,
@@ -234,13 +245,22 @@ export function calculateWaddlePose(walkPhase: number): AnimationPose {
     leftFootRotZ: footSwing,
     rightFootRotZ: -footSwing,
     bobY: bob,
+    leftWingRotX: wingFlapAngle,
+    rightWingRotX: wingFlapAngle === 0 ? 0 : -wingFlapAngle,
+    leftWingRotZ: 0.1 + Math.abs(wingFlapAngle) * 0.5,
+    rightWingRotZ: 0.1 + Math.abs(wingFlapAngle) * 0.5,
+    wingFlapAngle,
   };
 }
 
 /**
- * アイドル待機アニメーション計算（尾羽フリフリ、地面をつつくPecking、首かしげ）
+ * アイドル待機アニメーション計算（尾羽フリフリ、地面をつつくPecking、首かしげ、緊急時その場羽ばたき）
  */
-export function calculateIdlePose(time: number, seed: number): AnimationPose {
+export function calculateIdlePose(
+  time: number,
+  seed: number,
+  urgencyLevel: UrgencyLevel = 'normal'
+): AnimationPose {
   // 尾羽フリフリ (小刻みで速い左右揺れ)
   const tail = Math.sin(time * 12 + seed) * 0.35;
   // 首かしげ (ゆっくり傾き)
@@ -254,15 +274,38 @@ export function calculateIdlePose(time: number, seed: number): AnimationPose {
     peck = Math.sin(peckProgress * Math.PI) * 0.38;
   }
 
+  let wingFlapAngle = 0;
+  let idleBob = -peck * 0.04;
+  let idleTail = tail;
+  let idleTilt = tilt;
+
+  if (urgencyLevel === 'critical') {
+    // アイドル待機中でも直前パニック時はその場で激しく羽ばたき・首振り
+    wingFlapAngle = Math.sin(time * 36.0) * 0.45;
+    idleBob += Math.abs(Math.sin(time * 14.0)) * 0.03;
+    idleTail = Math.sin(time * 24.0 + seed) * 0.45;
+    idleTilt = Math.sin(time * 12.0 + seed) * 0.25;
+  } else if (urgencyLevel === 'panicked') {
+    wingFlapAngle = Math.sin(time * 18.0) * 0.2;
+    idleTail = Math.sin(time * 18.0 + seed) * 0.4;
+  } else if (urgencyLevel === 'overdue') {
+    wingFlapAngle = Math.sin(time * 10.0) * 0.12;
+  }
+
   return {
     bodyRoll: 0,
     peckPitch: -peck,
-    tailWiggle: tail,
-    headTilt: tilt,
+    tailWiggle: idleTail,
+    headTilt: idleTilt,
     headYaw: Math.sin(time * 1.5 + seed) * 0.15,
     leftFootRotZ: 0,
     rightFootRotZ: 0,
-    bobY: -peck * 0.04,
+    bobY: idleBob,
+    leftWingRotX: wingFlapAngle,
+    rightWingRotX: wingFlapAngle === 0 ? 0 : -wingFlapAngle,
+    leftWingRotZ: 0.1 + Math.abs(wingFlapAngle) * 0.5,
+    rightWingRotZ: 0.1 + Math.abs(wingFlapAngle) * 0.5,
+    wingFlapAngle,
   };
 }
 
@@ -283,6 +326,11 @@ export function calculateSwimmingPose(time: number, seed: number): AnimationPose
     leftFootRotZ: 0,
     rightFootRotZ: 0,
     bobY: floatY,
+    leftWingRotX: 0,
+    rightWingRotX: 0,
+    leftWingRotZ: 0.1,
+    rightWingRotZ: 0.1,
+    wingFlapAngle: 0,
   };
 }
 
@@ -297,6 +345,8 @@ export function calculateJumpPose(progress: number, timer: number): AnimationPos
   const tail = Math.sin(timer * 22) * 0.35;
   const footSwing = Math.sin(progress * Math.PI * 4) * 0.4;
 
+  const wingFlap = Math.sin(timer * 24) * 0.45;
+
   return {
     bodyRoll: roll,
     peckPitch: flip,
@@ -306,6 +356,11 @@ export function calculateJumpPose(progress: number, timer: number): AnimationPos
     leftFootRotZ: footSwing,
     rightFootRotZ: -footSwing,
     bobY: 0,
+    leftWingRotX: 0,
+    rightWingRotX: 0,
+    leftWingRotZ: 0.2 + wingFlap,
+    rightWingRotZ: 0.2 + wingFlap,
+    wingFlapAngle: wingFlap,
   };
 }
 
@@ -316,6 +371,7 @@ export function calculateMarchPose(walkPhase: number): AnimationPose {
   const roll = Math.sin(walkPhase) * 0.22;
   const footSwing = Math.sin(walkPhase) * 0.6;
   const bob = Math.abs(Math.sin(walkPhase)) * 0.05;
+  const marchWingFlap = Math.sin(walkPhase * 2) * 0.35;
 
   return {
     bodyRoll: roll,
@@ -326,6 +382,11 @@ export function calculateMarchPose(walkPhase: number): AnimationPose {
     leftFootRotZ: footSwing,
     rightFootRotZ: -footSwing,
     bobY: bob,
+    leftWingRotX: 0,
+    rightWingRotX: 0,
+    leftWingRotZ: 0.15 + marchWingFlap,
+    rightWingRotZ: 0.15 + marchWingFlap,
+    wingFlapAngle: marchWingFlap,
   };
 }
 
@@ -334,6 +395,7 @@ export interface DuckAIControllerOptions {
   status: TaskStatus;
   index: number;
   initialPos: [number, number, number];
+  dueDate?: string | null;
 }
 
 /**
@@ -353,6 +415,7 @@ export class DuckAIController {
   public baseSpeed: number;
   public baseY: number;
   public isPond: boolean;
+  public urgency: UrgencyInfo;
   public celebrationTimer: number = 0;
   public celebrationJumpDuration: number = 1.0;
   public celebrationOrigin: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
@@ -364,6 +427,7 @@ export class DuckAIController {
     this.seed = options.index * 1.37 + 0.5;
     this.isPond = options.status === 'done';
     this.state = this.isPond ? 'SWIMMING' : 'IDLE';
+    this.urgency = calculateUrgency(options.dueDate, options.status);
     this.position = {
       x: options.initialPos[0],
       y: options.initialPos[1],
@@ -379,6 +443,20 @@ export class DuckAIController {
     this.walkPhase = options.index * 0.5;
     this.totalTime = 0;
     this.baseSpeed = this.isPond ? 0.7 : 1.1;
+  }
+
+  /**
+   * stepメソッドのエイリアス (AIコントローラー更新)
+   */
+  update(delta: number, neighbors: Vector2D[], task: Task): AnimationPose {
+    return this.step(delta, neighbors, task);
+  }
+
+  /**
+   * 緊急度情報の明示的設定
+   */
+  setUrgency(urgency: UrgencyInfo): void {
+    this.urgency = urgency;
   }
 
   /**
@@ -445,7 +523,9 @@ export class DuckAIController {
       this.stateTimer = 2.0 + Math.random() * 3.0;
     }
 
-    const { speedMultiplier, animSpeedMultiplier } = calculateSpeedMultiplier(task);
+    const urgency = calculateUrgency(task.dueDate, task.status);
+    this.urgency = urgency;
+    const { speedMultiplier, animSpeedMultiplier, urgencyLevel } = urgency;
     const bounds = getAreaBounds(task.status, 0.6);
     let pose: AnimationPose;
 
@@ -458,7 +538,7 @@ export class DuckAIController {
         // 歩行持続制限時間 (4〜8秒)
         this.stateTimer = 4.0 + Math.random() * 4.0;
       }
-      pose = calculateIdlePose(this.totalTime, this.seed);
+      pose = calculateIdlePose(this.totalTime, this.seed, urgencyLevel);
     } else if (this.state === 'WALKING') {
       this.stateTimer -= delta;
 
@@ -471,11 +551,11 @@ export class DuckAIController {
         this.state = 'IDLE';
         // 2〜5秒のランダム待機
         this.stateTimer = 2.0 + Math.random() * 3.0;
-        pose = calculateIdlePose(this.totalTime, this.seed);
+        pose = calculateIdlePose(this.totalTime, this.seed, urgencyLevel);
       } else {
-        // 目標方向へのSlerp回転補間
+        // 目標方向へのSlerp回転補間 (スピードが速い時は素早く旋回)
         const targetHeading = calculateHeadingAngle(this.position, this.target);
-        this.heading = slerpAngle(this.heading, targetHeading, 6.0 * delta);
+        this.heading = slerpAngle(this.heading, targetHeading, 6.0 * delta * Math.min(2.0, speedMultiplier));
 
         // 前進移動
         const moveSpeed = this.baseSpeed * speedMultiplier;
@@ -507,9 +587,9 @@ export class DuckAIController {
           this.target = getRandomTargetInBounds(bounds);
         }
 
-        // よちよち歩きアニメーションの進行
+        // よちよち歩きアニメーションの進行 (animSpeedMultiplierを反映)
         this.walkPhase += delta * 8.0 * animSpeedMultiplier;
-        pose = calculateWaddlePose(this.walkPhase);
+        pose = calculateWaddlePose(this.walkPhase, urgencyLevel, this.totalTime);
       }
     } else if (this.state === 'CELEBRATING_JUMP') {
       // 宙返りジャンプ (放物線跳躍 + 360度ピッチ回転)

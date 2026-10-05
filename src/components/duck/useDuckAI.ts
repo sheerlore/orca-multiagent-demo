@@ -8,6 +8,7 @@ import {
   type DuckAIState,
   duckPositionRegistry,
 } from '../../utils/duckAI';
+import { calculateUrgency, type UrgencyInfo } from '../../utils/urgency';
 
 export interface UseDuckAIOptions {
   task: Task;
@@ -18,6 +19,8 @@ export interface UseDuckAIOptions {
   tailRef?: React.RefObject<THREE.Mesh | null>;
   leftFootRef?: React.RefObject<THREE.Mesh | null>;
   rightFootRef?: React.RefObject<THREE.Mesh | null>;
+  leftWingRef?: React.RefObject<THREE.Mesh | null>;
+  rightWingRef?: React.RefObject<THREE.Mesh | null>;
   rippleRef?: React.RefObject<THREE.Mesh | null>;
   onCelebrationStart?: (pos: [number, number, number]) => void;
   onSplash?: () => void;
@@ -26,6 +29,8 @@ export interface UseDuckAIOptions {
 export interface UseDuckAIReturn {
   controller: DuckAIController;
   getAIState: () => DuckAIState;
+  urgency: UrgencyInfo;
+  getUrgency: () => UrgencyInfo;
 }
 
 /**
@@ -42,6 +47,8 @@ export function useDuckAI({
   tailRef,
   leftFootRef,
   rightFootRef,
+  leftWingRef,
+  rightWingRef,
   rippleRef,
   onCelebrationStart,
   onSplash,
@@ -51,21 +58,31 @@ export function useDuckAI({
     [task.status, index]
   );
 
+  const urgency = useMemo(
+    () => calculateUrgency(task.dueDate, task.status),
+    [task.dueDate, task.status]
+  );
+
   // 初期化時のみコントローラーを生成し、以降は再レンダリングを発生させず同一参照を維持
   const [controller] = useState(
     () =>
       new DuckAIController({
         id: task.id,
         status: task.status,
+        dueDate: task.dueDate,
         index,
         initialPos,
       })
   );
 
+  // 期限またはステータス更新時にコントローラーのurgencyも同期
+  useEffect(() => {
+    controller.setUrgency(urgency);
+  }, [urgency, controller]);
+
   // タスクステータス変更時の検知・同期（セレブレーション演出または草原復帰）
   const prevStatusRef = useRef<Task['status']>(task.status);
   const isInitialMountRef = useRef(true);
-
   useEffect(() => {
     // 初回マウント時（リロード時など）はセレブレーションを実行せず静かに配置
     if (isInitialMountRef.current) {
@@ -171,10 +188,22 @@ export function useDuckAI({
         material.opacity = Math.max(0, (1 - progress) * 0.35);
       }
     }
+
+    // 7. 羽ばたき（wing flap - critical時は激しい超高速羽ばたき）
+    if (leftWingRef?.current) {
+      leftWingRef.current.rotation.x = pose.leftWingRotX;
+      leftWingRef.current.rotation.z = pose.leftWingRotZ;
+    }
+    if (rightWingRef?.current) {
+      rightWingRef.current.rotation.x = pose.rightWingRotX;
+      rightWingRef.current.rotation.z = pose.rightWingRotZ;
+    }
   });
 
   return {
     controller,
     getAIState: () => controller.state,
+    urgency,
+    getUrgency: () => urgency,
   };
 }

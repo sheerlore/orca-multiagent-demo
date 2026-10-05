@@ -9,7 +9,9 @@ import { CelebrationConfetti } from './CelebrationConfetti';
 import { CelebrationSplash } from './CelebrationSplash';
 import { DuckModel } from './DuckModel';
 import { DuckRipple } from './DuckRipple';
+import { DuckEmotionEffect } from './DuckEmotionEffect';
 import { useDuckAI } from './useDuckAI';
+import { calculateUrgency } from '../../utils/urgency';
 
 export interface DuckProps {
   task: Task;
@@ -24,7 +26,9 @@ export interface DuckProps {
  * 3Dシーン上に配置されるアヒルエンティティ。
  * 自律歩行AIステートマシン（useDuckAI）により、IDLE/WALKING/SWIMMING/CELEBRATIONを自動遷移し、
  * 境界制御およびアヒル同士の反発制御を行います。
- * タスク完了時には宙返りジャンプ・紙吹雪パーティクル・池への行進・スプラッシュ波紋・Web Audioジングルを再生します。
+ * マウスホバー・クリックによるアウトライン発光、吹き出しホップ跳躍演出、最新座標フォーカス、
+ * タスク詳細ドロワーとの双方向連動、期限(DueDate)に応じた歩行速度・羽ばたきアニメーション・3D感情エフェクト、
+ * およびタスク完了時のセレブレーション（宙返り・紙吹雪・池移動・Web Audio）を提供します。
  */
 export function Duck({
   task,
@@ -40,6 +44,8 @@ export function Duck({
   const tailRef = useRef<THREE.Mesh>(null);
   const leftFootRef = useRef<THREE.Mesh>(null);
   const rightFootRef = useRef<THREE.Mesh>(null);
+  const leftWingRef = useRef<THREE.Mesh>(null);
+  const rightWingRef = useRef<THREE.Mesh>(null);
   const rippleRef = useRef<THREE.Mesh>(null);
 
   const [isQuacking, setIsQuacking] = useState(false);
@@ -72,6 +78,12 @@ export function Duck({
     }
   }, [index]);
 
+  // 期限とステータスから緊急度情報を取得 (docs/SPEC.md 3.3.4)
+  const urgency = useMemo(
+    () => calculateUrgency(task.dueDate, task.status),
+    [task.dueDate, task.status]
+  );
+
   // ステータスに応じた初期スポーン位置
   const [baseX, baseY, baseZ] = useMemo(
     () => getDuckSpawnPosition(task.status, index),
@@ -88,6 +100,8 @@ export function Duck({
     tailRef,
     leftFootRef,
     rightFootRef,
+    leftWingRef,
+    rightWingRef,
     rippleRef,
     onCelebrationStart: handleCelebrationStart,
     onSplash: handleSplash,
@@ -144,10 +158,15 @@ export function Duck({
           tailRef={tailRef}
           leftFootRef={leftFootRef}
           rightFootRef={rightFootRef}
+          leftWingRef={leftWingRef}
+          rightWingRef={rightWingRef}
         />
 
         {/* 水泳時（done かつ池着水後）の足元波紋エフェクト */}
         {task.status === 'done' && !isCelebrating && <DuckRipple rippleRef={rippleRef} />}
+
+        {/* 期限連動 3D 感情エフェクト (panicked / critical / overdue) */}
+        <DuckEmotionEffect urgencyLevel={urgency.urgencyLevel} />
 
         {/* クリック時の「クワッ！」吹き出しポップアップ */}
         {isQuacking && (
