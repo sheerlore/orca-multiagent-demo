@@ -1,116 +1,11 @@
-import { useMemo, useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Canvas } from '@react-three/fiber';
 import { Camera, RotateCcw } from 'lucide-react';
-import type * as THREE from 'three';
 import { useTaskStore } from '../store/taskStore';
 import { useCameraStore } from '../store/cameraStore';
 import { ISOMETRIC_CONFIG } from '../constants/scene';
-import { getDuckSpawnPosition } from '../utils/sceneMath';
 import { World } from './world/World';
 import { CameraController } from './CameraController';
-import type { Task } from '../types/task';
-
-function Duck({
-  task,
-  index,
-  isSelected,
-  onSelect,
-}: {
-  task: Task;
-  index: number;
-  isSelected: boolean;
-  onSelect: (pos: [number, number, number]) => void;
-}) {
-  const groupRef = useRef<THREE.Group>(null);
-
-  // ステータスに応じたワールド配置位置を計算
-  const [baseX, baseY, baseZ] = useMemo(
-    () => getDuckSpawnPosition(task.status, index),
-    [task.status, index]
-  );
-  const isPond = task.status === 'done';
-
-  useFrame((state) => {
-    if (!groupRef.current) return;
-    const t = state.clock.getElapsedTime();
-    // 泳ぎ・歩行の浮遊アニメーション
-    const speed = task.status === 'in-progress' ? 4 : isPond ? 1.5 : 2;
-    const height = Math.sin(t * speed + index) * 0.08;
-    groupRef.current.position.y = baseY + height;
-    // 左右のヨチヨチ首振り・回遊揺れ
-    groupRef.current.rotation.y = Math.sin(t * 1.5 + index) * 0.2;
-  });
-
-  return (
-    <group
-      ref={groupRef}
-      position={[baseX, baseY, baseZ]}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect([baseX, baseY, baseZ]);
-      }}
-      onPointerOver={(e) => {
-        e.stopPropagation();
-        document.body.style.cursor = 'pointer';
-      }}
-      onPointerOut={() => {
-        document.body.style.cursor = 'auto';
-      }}
-    >
-      {/* アヒル胴体 */}
-      <mesh castShadow receiveShadow>
-        <sphereGeometry args={[0.4, 16, 16]} />
-        <meshStandardMaterial
-          color={task.duckColor ?? '#facc15'}
-          roughness={0.4}
-          metalness={0.1}
-          emissive={isSelected ? '#38bdf8' : '#000000'}
-          emissiveIntensity={isSelected ? 0.35 : 0}
-        />
-      </mesh>
-
-      {/* アヒル頭部 */}
-      <mesh position={[0.25, 0.3, 0]} castShadow>
-        <sphereGeometry args={[0.25, 16, 16]} />
-        <meshStandardMaterial color={task.duckColor ?? '#facc15'} roughness={0.4} />
-      </mesh>
-
-      {/* アヒルくちばし */}
-      <mesh position={[0.5, 0.25, 0]} rotation={[0, 0, -Math.PI / 2]} castShadow>
-        <coneGeometry args={[0.1, 0.25, 8]} />
-        <meshStandardMaterial color="#f97316" roughness={0.3} />
-      </mesh>
-
-      {/* タスク状態に応じた簡易アクセサリ (進行中: ハチマキ、完了: 王冠) */}
-      {task.status === 'in-progress' && (
-        <mesh position={[0.25, 0.42, 0]} rotation={[0, 0, 0.15]}>
-          <torusGeometry args={[0.26, 0.04, 8, 16]} />
-          <meshStandardMaterial color="#ef4444" roughness={0.5} />
-        </mesh>
-      )}
-      {task.status === 'done' && (
-        <mesh position={[0.25, 0.56, 0]} rotation={[0, 0, 0]}>
-          <cylinderGeometry args={[0.15, 0.1, 0.12, 5]} />
-          <meshStandardMaterial color="#eab308" metalness={0.7} roughness={0.2} />
-        </mesh>
-      )}
-
-      {/* タスクタイトルタグ */}
-      <Text
-        position={[0, 0.85, 0]}
-        fontSize={0.22}
-        color={isSelected ? '#38bdf8' : '#ffffff'}
-        anchorX="center"
-        anchorY="middle"
-        outlineWidth={0.025}
-        outlineColor="#0f172a"
-      >
-        {task.title.length > 12 ? `${task.title.slice(0, 12)}...` : task.title}
-      </Text>
-    </group>
-  );
-}
+import { Duck } from './duck/Duck';
 
 export function DuckCanvas() {
   const { tasks, selectedTaskId, setSelectedTaskId } = useTaskStore();

@@ -32,6 +32,7 @@ describe('DuckCanvas Component', () => {
           title: 'テストタスク1',
           status: 'todo',
           priority: 'medium',
+          description: '',
           dueDate: null,
           duckColor: '#facc15',
           createdAt: new Date().toISOString(),
