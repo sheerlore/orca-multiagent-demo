@@ -125,6 +125,8 @@ export function loadFromStorage(): { tasks: Task[]; settings: UserSettings } {
 export interface TaskState {
   tasks: Task[];
   selectedTaskId: string | null;
+  hoveredTaskId: string | null;
+  isDetailDrawerOpen: boolean;
   settings: UserSettings;
 
   // Task actions
@@ -139,6 +141,10 @@ export interface TaskState {
   deleteTask: (id: string) => void;
   toggleStatus: (id: string) => void;
   setSelectedTaskId: (id: string | null) => void;
+  setHoveredTaskId: (id: string | null) => void;
+  setIsDetailDrawerOpen: (open: boolean) => void;
+  openDetailDrawer: (id: string) => void;
+  closeDetailDrawer: () => void;
 
   // Settings actions
   updateSettings: (updates: Partial<UserSettings>) => void;
@@ -161,6 +167,8 @@ const initial = loadFromStorage();
 export const useTaskStore = create<TaskState>((set, get) => ({
   tasks: initial.tasks,
   selectedTaskId: null,
+  hoveredTaskId: null,
+  isDetailDrawerOpen: false,
   settings: initial.settings,
 
   addTask: (title, priority = 'medium', description = '', dueDate = null, duckColor) => {
@@ -233,9 +241,12 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     set((state) => {
       const updatedTasks = state.tasks.filter((task) => task.id !== id);
       saveToStorage(updatedTasks, state.settings);
+      const isSelected = state.selectedTaskId === id;
       return {
         tasks: updatedTasks,
-        selectedTaskId: state.selectedTaskId === id ? null : state.selectedTaskId,
+        selectedTaskId: isSelected ? null : state.selectedTaskId,
+        isDetailDrawerOpen: isSelected ? false : state.isDetailDrawerOpen,
+        hoveredTaskId: state.hoveredTaskId === id ? null : state.hoveredTaskId,
       };
     });
   },
@@ -260,7 +271,31 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     });
   },
 
-  setSelectedTaskId: (id) => set({ selectedTaskId: id }),
+  setSelectedTaskId: (id) =>
+    set({
+      selectedTaskId: id,
+      isDetailDrawerOpen: id !== null,
+    }),
+
+  setHoveredTaskId: (id) => set({ hoveredTaskId: id }),
+
+  setIsDetailDrawerOpen: (open) =>
+    set((state) => ({
+      isDetailDrawerOpen: open,
+      selectedTaskId: open ? state.selectedTaskId : null,
+    })),
+
+  openDetailDrawer: (id) =>
+    set({
+      selectedTaskId: id,
+      isDetailDrawerOpen: true,
+    }),
+
+  closeDetailDrawer: () =>
+    set({
+      isDetailDrawerOpen: false,
+      selectedTaskId: null,
+    }),
 
   updateSettings: (updates) => {
     set((state) => {
@@ -409,7 +444,13 @@ export const useTaskStore = create<TaskState>((set, get) => ({
             : currentSettings.cameraFollowMode,
       };
 
-      set({ tasks: normalizedTasks, settings: newSettings, selectedTaskId: null });
+      set({
+        tasks: normalizedTasks,
+        settings: newSettings,
+        selectedTaskId: null,
+        hoveredTaskId: null,
+        isDetailDrawerOpen: false,
+      });
       saveToStorage(normalizedTasks, newSettings);
       return true;
     } catch (err) {
@@ -431,13 +472,20 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       tasks: initialTasks,
       settings: initialSettings,
       selectedTaskId: null,
+      hoveredTaskId: null,
+      isDetailDrawerOpen: false,
     });
   },
 
   clearAllTasks: () => {
     set((state) => {
       saveToStorage([], state.settings);
-      return { tasks: [], selectedTaskId: null };
+      return {
+        tasks: [],
+        selectedTaskId: null,
+        hoveredTaskId: null,
+        isDetailDrawerOpen: false,
+      };
     });
   },
 }));
