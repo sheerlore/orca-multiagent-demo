@@ -4,6 +4,8 @@ export { DuckTitleTag, type DuckTitleTagProps } from './DuckTitleTag';
 export { HoverIndicator, type HoverIndicatorProps } from './HoverIndicator';
 export { DuckRipple, type DuckRippleProps } from './DuckRipple';
 export { DuckEmotionEffect, type DuckEmotionEffectProps } from './DuckEmotionEffect';
+export { CelebrationConfetti, type CelebrationConfettiProps } from './CelebrationConfetti';
+export { CelebrationSplash, type CelebrationSplashProps } from './CelebrationSplash';
 export { useDuckAI, type UseDuckAIOptions, type UseDuckAIReturn } from './useDuckAI';
 export { duckGeometries } from './geometries';
 export * from './accessories';
