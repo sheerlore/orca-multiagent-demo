@@ -10,6 +10,8 @@ import {
   calculateWaddlePose,
   calculateIdlePose,
   calculateSwimmingPose,
+  calculateJumpPose,
+  calculateMarchPose,
   DuckAIController,
   duckPositionRegistry,
 } from './duckAI';
@@ -378,6 +380,97 @@ describe('duckAI utility & state machine', () => {
       expect(controller.state).toBe('SWIMMING');
       expect(controller.isPond).toBe(true);
       expect(controller.baseY).toBe(0.05);
+    });
+
+    describe('タスク完了セレブレーション (Celebration Sequence)', () => {
+      it('calculateJumpPoseが360度一回転の宙返りピッチ回転を生成する', () => {
+        const poseStart = calculateJumpPose(0, 0);
+        expect(poseStart.peckPitch).toBeCloseTo(0);
+
+        const poseMid = calculateJumpPose(0.5, 0.5);
+        expect(poseMid.peckPitch).toBeCloseTo(-Math.PI);
+
+        const poseEnd = calculateJumpPose(1.0, 1.0);
+        expect(poseEnd.peckPitch).toBeCloseTo(-Math.PI * 2);
+      });
+
+      it('calculateMarchPoseが前傾姿勢とキビキビした足振りを生成する', () => {
+        const pose1 = calculateMarchPose(0);
+        expect(pose1.peckPitch).toBeCloseTo(0.22);
+        expect(pose1.leftFootRotZ).toBeCloseTo(0);
+
+        const pose2 = calculateMarchPose(Math.PI / 2);
+        expect(pose2.leftFootRotZ).toBeCloseTo(0.6);
+        expect(pose2.rightFootRotZ).toBeCloseTo(-0.6);
+      });
+
+      it('startCelebrationからジャンプ -> 行進 -> 池着水(スプラッシュ) -> SWIMMINGの一連シーケンスが正しく進行する', () => {
+        const controller = new DuckAIController({
+          id: 'duck-celebrate-1',
+          status: 'todo',
+          index: 0,
+          initialPos: [-2, 0.45, 0],
+        });
+
+        const onSplash = vi.fn();
+        const pondTarget: [number, number, number] = [7.5, 0.05, 0];
+
+        // セレブレーション開始
+        controller.startCelebration(pondTarget, onSplash);
+        expect(controller.state).toBe('CELEBRATING_JUMP');
+        expect(controller.celebrationTimer).toBe(0);
+
+        const doneTask = createMockTask({ status: 'done' });
+
+        // 1. ジャンプ前半（0.5秒後）：空中に跳躍している
+        controller.step(0.5, [], doneTask);
+        expect(controller.state).toBe('CELEBRATING_JUMP');
+        expect(controller.position.y).toBeGreaterThan(1.2); // 0.45 + sin(0.5*PI)*1.3 = 1.75
+        expect(controller.position.x).toBeCloseTo(-2);
+
+        // 2. ジャンプ終了（さらに0.6秒後、累計1.1秒）：着地してCELEBRATING_MARCHへ移行
+        controller.step(0.6, [], doneTask);
+        expect(controller.state).toBe('CELEBRATING_MARCH');
+
+        // 3. 池への行進：X座標が正方向（池方向）へ前進する
+        const prevX = controller.position.x;
+        controller.step(0.5, [], doneTask);
+        expect(controller.position.x).toBeGreaterThan(prevX);
+        expect(controller.state).toBe('CELEBRATING_MARCH');
+        expect(onSplash).not.toHaveBeenCalled();
+
+        // 4. 池エリア（X >= 5.5）へ到達するまでシミュレーションを進める
+        for (let i = 0; i < 50; i++) {
+          controller.step(0.1, [], doneTask);
+          if (controller.state === 'SWIMMING') break;
+        }
+
+        // 池に到達してonSplashが呼ばれ、SWIMMINGへ移行
+        expect(controller.state).toBe('SWIMMING');
+        expect(controller.isPond).toBe(true);
+        expect(controller.baseY).toBe(0.05);
+        expect(onSplash).toHaveBeenCalledTimes(1);
+      });
+
+      it('セレブレーション中にタスクが未完了に戻された場合、直ちにIDLE(草原)へ復帰する', () => {
+        const controller = new DuckAIController({
+          id: 'duck-celebrate-abort',
+          status: 'todo',
+          index: 0,
+          initialPos: [-2, 0.45, 0],
+        });
+
+        controller.startCelebration([7.5, 0.05, 0]);
+        expect(controller.state).toBe('CELEBRATING_JUMP');
+
+        // 未完了タスクでステップを実行
+        const todoTask = createMockTask({ status: 'todo' });
+        controller.step(0.1, [], todoTask);
+
+        expect(controller.state).toBe('IDLE');
+        expect(controller.isPond).toBe(false);
+        expect(controller.baseY).toBe(0.45);
+      });
     });
   });
 

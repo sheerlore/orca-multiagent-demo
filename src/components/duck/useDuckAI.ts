@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type * as THREE from 'three';
 import type { Task } from '../../types/task';
@@ -19,6 +19,8 @@ export interface UseDuckAIOptions {
   leftFootRef?: React.RefObject<THREE.Mesh | null>;
   rightFootRef?: React.RefObject<THREE.Mesh | null>;
   rippleRef?: React.RefObject<THREE.Mesh | null>;
+  onCelebrationStart?: (pos: [number, number, number]) => void;
+  onSplash?: () => void;
 }
 
 export interface UseDuckAIReturn {
@@ -41,6 +43,8 @@ export function useDuckAI({
   leftFootRef,
   rightFootRef,
   rippleRef,
+  onCelebrationStart,
+  onSplash,
 }: UseDuckAIOptions): UseDuckAIReturn {
   const initialPos = useMemo(
     () => getDuckSpawnPosition(task.status, index),
@@ -58,16 +62,38 @@ export function useDuckAI({
       })
   );
 
-  // タスクステータス変更時の同期（草原 <-> 池）
+  // タスクステータス変更時の検知・同期（セレブレーション演出または草原復帰）
+  const prevStatusRef = useRef<Task['status']>(task.status);
+  const isInitialMountRef = useRef(true);
+
   useEffect(() => {
-    if (task.status === 'done') {
+    // 初回マウント時（リロード時など）はセレブレーションを実行せず静かに配置
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      prevStatusRef.current = task.status;
+      return;
+    }
+
+    const prevStatus = prevStatusRef.current;
+    prevStatusRef.current = task.status;
+
+    if ((prevStatus === 'todo' || prevStatus === 'in-progress') && task.status === 'done') {
+      // todo / in-progress から done への変化を検知 -> セレブレーション開始
+      const currentPos: [number, number, number] = [
+        controller.position.x,
+        controller.position.y,
+        controller.position.z,
+      ];
+      onCelebrationStart?.(currentPos);
+
       const pondPos = getDuckSpawnPosition('done', index);
-      controller.syncToPond(pondPos);
-    } else {
+      controller.startCelebration(pondPos, onSplash);
+    } else if (prevStatus === 'done' && task.status !== 'done') {
+      // done から未完了に戻された場合 -> 草原エリアへ復帰
       const grassPos = getDuckSpawnPosition(task.status, index);
       controller.syncToGrass(grassPos);
     }
-  }, [task.status, index, controller]);
+  }, [task.status, index, controller, onCelebrationStart, onSplash]);
 
   // 位置レジストリへの登録とアンマウント時のクリーンアップ
   useEffect(() => {

@@ -2,7 +2,12 @@ import { GRASS_BOUNDS, POND_BOUNDS } from '../constants/scene';
 import type { Task, TaskStatus } from '../types/task';
 import { duckPositionRegistry } from './duckPositionRegistry';
 
-export type DuckAIState = 'IDLE' | 'WALKING' | 'SWIMMING';
+export type DuckAIState =
+  | 'IDLE'
+  | 'WALKING'
+  | 'SWIMMING'
+  | 'CELEBRATING_JUMP'
+  | 'CELEBRATING_MARCH';
 
 export interface Vector2D {
   x: number;
@@ -281,6 +286,49 @@ export function calculateSwimmingPose(time: number, seed: number): AnimationPose
   };
 }
 
+/**
+ * タスク完了時の宙返りジャンプアニメーション計算 (360度一回転・約1.0秒)
+ */
+export function calculateJumpPose(progress: number, timer: number): AnimationPose {
+  // ピョンと360度宙返り回転 (0 -> -2π)
+  const flip = -progress * Math.PI * 2;
+  // 左右に少し揺れながら羽ばたく
+  const roll = Math.sin(progress * Math.PI * 2) * 0.15;
+  const tail = Math.sin(timer * 22) * 0.35;
+  const footSwing = Math.sin(progress * Math.PI * 4) * 0.4;
+
+  return {
+    bodyRoll: roll,
+    peckPitch: flip,
+    tailWiggle: tail,
+    headTilt: -0.2,
+    headYaw: 0,
+    leftFootRotZ: footSwing,
+    rightFootRotZ: -footSwing,
+    bobY: 0,
+  };
+}
+
+/**
+ * 草原から池への一直線行進（パタパタ小走り）アニメーション計算
+ */
+export function calculateMarchPose(walkPhase: number): AnimationPose {
+  const roll = Math.sin(walkPhase) * 0.22;
+  const footSwing = Math.sin(walkPhase) * 0.6;
+  const bob = Math.abs(Math.sin(walkPhase)) * 0.05;
+
+  return {
+    bodyRoll: roll,
+    peckPitch: 0.22, // 意欲的な前傾姿勢
+    tailWiggle: Math.sin(walkPhase * 2) * 0.3,
+    headTilt: -roll * 0.5,
+    headYaw: 0,
+    leftFootRotZ: footSwing,
+    rightFootRotZ: -footSwing,
+    bobY: bob,
+  };
+}
+
 export interface DuckAIControllerOptions {
   id: string;
   status: TaskStatus;
@@ -305,6 +353,11 @@ export class DuckAIController {
   public baseSpeed: number;
   public baseY: number;
   public isPond: boolean;
+  public celebrationTimer: number = 0;
+  public celebrationJumpDuration: number = 1.0;
+  public celebrationOrigin: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
+  public celebrationTarget: Vector2D = { x: 7, z: 0 };
+  public onSplash?: () => void;
 
   constructor(options: DuckAIControllerOptions) {
     this.id = options.id;
@@ -357,21 +410,35 @@ export class DuckAIController {
   }
 
   /**
+   * タスク完了セレブレーションを開始（宙返りジャンプ -> 池へパタパタ移動 -> 水泳）
+   */
+  startCelebration(pondTargetPos: [number, number, number], onSplash?: () => void): void {
+    this.state = 'CELEBRATING_JUMP';
+    this.celebrationTimer = 0;
+    this.celebrationOrigin = { ...this.position };
+    this.celebrationTarget = { x: pondTargetPos[0], z: pondTargetPos[2] };
+    this.onSplash = onSplash;
+    this.isPond = false;
+  }
+
+  /**
    * 1フレームのAIシミュレーション更新
    */
   step(delta: number, neighbors: Vector2D[], task: Task): AnimationPose {
     this.totalTime += delta;
     const isDone = task.status === 'done';
+    const isCelebrating =
+      this.state === 'CELEBRATING_JUMP' || this.state === 'CELEBRATING_MARCH';
 
-    // 外部からのタスクステータス切り替え同期
-    if (isDone && this.state !== 'SWIMMING') {
+    // 外部からのタスクステータス切り替え同期（セレブレーション実行中は上書きしない）
+    if (isDone && !this.isPond && !isCelebrating) {
       this.isPond = true;
       this.state = 'SWIMMING';
       this.baseY = 0.05;
       const bounds = getAreaBounds('done', 0.6);
       this.target = getRandomTargetInBounds(bounds);
       this.stateTimer = 5.0 + Math.random() * 5.0;
-    } else if (!isDone && this.state === 'SWIMMING') {
+    } else if (!isDone && (this.isPond || isCelebrating)) {
       this.isPond = false;
       this.state = 'IDLE';
       this.baseY = 0.45;
@@ -444,6 +511,54 @@ export class DuckAIController {
         this.walkPhase += delta * 8.0 * animSpeedMultiplier;
         pose = calculateWaddlePose(this.walkPhase);
       }
+    } else if (this.state === 'CELEBRATING_JUMP') {
+      // 宙返りジャンプ (放物線跳躍 + 360度ピッチ回転)
+      this.celebrationTimer += delta;
+      const progress = Math.min(1, this.celebrationTimer / this.celebrationJumpDuration);
+
+      this.position.x = this.celebrationOrigin.x;
+      this.position.z = this.celebrationOrigin.z;
+      this.position.y = this.celebrationOrigin.y + Math.sin(progress * Math.PI) * 1.3;
+
+      pose = calculateJumpPose(progress, this.celebrationTimer);
+
+      if (progress >= 1.0) {
+        // 着地して池への行進へ移行
+        this.state = 'CELEBRATING_MARCH';
+        this.position.y = this.celebrationOrigin.y;
+        this.heading = calculateHeadingAngle(this.position, this.celebrationTarget);
+      }
+    } else if (this.state === 'CELEBRATING_MARCH') {
+      // 池への一直線移動 (パタパタ小走り)
+      const targetHeading = calculateHeadingAngle(this.position, this.celebrationTarget);
+      this.heading = slerpAngle(this.heading, targetHeading, 8.0 * delta);
+
+      const marchSpeed = 2.8;
+      const vx = Math.cos(this.heading) * marchSpeed;
+      const vz = -Math.sin(this.heading) * marchSpeed;
+
+      this.position.x += vx * delta;
+      this.position.z += vz * delta;
+
+      this.walkPhase += delta * 16.0;
+      pose = calculateMarchPose(this.walkPhase);
+
+      const dx = this.celebrationTarget.x - this.position.x;
+      const dz = this.celebrationTarget.z - this.position.z;
+      const distToTarget = Math.sqrt(dx * dx + dz * dz);
+
+      // 池エリア到達判定 (X >= 5.5 または目標地点至近)
+      if (this.position.x >= 5.5 || distToTarget < 0.5) {
+        // 「ポチャン！」と池に飛び込み遊泳モードへ
+        this.isPond = true;
+        this.state = 'SWIMMING';
+        this.baseY = 0.05;
+        this.position.y = 0.05;
+        const pondBounds = getAreaBounds('done', 0.6);
+        this.target = getRandomTargetInBounds(pondBounds);
+        this.stateTimer = 5.0 + Math.random() * 5.0;
+        this.onSplash?.();
+      }
     } else {
       // SWIMMING (done専用ステート)
       this.stateTimer -= delta;
@@ -490,8 +605,10 @@ export class DuckAIController {
       pose = calculateSwimmingPose(this.totalTime, this.seed);
     }
 
-    // Y軸浮遊・歩行ボビングを適用
-    this.position.y = this.baseY + pose.bobY;
+    // Y軸浮遊・歩行ボビングを適用 (CELEBRATING_JUMP以外)
+    if (this.state !== 'CELEBRATING_JUMP') {
+      this.position.y = this.baseY + pose.bobY;
+    }
 
     return pose;
   }
