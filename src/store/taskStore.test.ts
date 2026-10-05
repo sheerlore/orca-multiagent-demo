@@ -141,6 +141,21 @@ describe('taskStore', () => {
       expect(state.selectedTaskId).toBeNull();
     });
 
+    it('restores a deleted task via restoreTask', () => {
+      const task = useTaskStore.getState().addTask('元に戻すテスト');
+      useTaskStore.getState().deleteTask(task.id);
+      expect(useTaskStore.getState().tasks).toHaveLength(0);
+
+      useTaskStore.getState().restoreTask(task);
+      expect(useTaskStore.getState().tasks).toHaveLength(1);
+      expect(useTaskStore.getState().tasks[0]?.id).toBe(task.id);
+      expect(useTaskStore.getState().tasks[0]?.title).toBe('元に戻すテスト');
+
+      // Duplicate restore should not add again
+      useTaskStore.getState().restoreTask(task);
+      expect(useTaskStore.getState().tasks).toHaveLength(1);
+    });
+
     it('clears all tasks via clearAllTasks', () => {
       useTaskStore.getState().addTask('タスク1');
       useTaskStore.getState().addTask('タスク2');
