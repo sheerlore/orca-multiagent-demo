@@ -1,17 +1,39 @@
+import { useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Camera, RotateCcw } from 'lucide-react';
 import { useTaskStore } from '../store/taskStore';
 import { useCameraStore } from '../store/cameraStore';
 import { ISOMETRIC_CONFIG } from '../constants/scene';
+import type { Task } from '../types/task';
 import { World } from './world/World';
 import { CameraController } from './CameraController';
 import { Duck } from './duck/Duck';
 
 export function DuckCanvas() {
-  const { tasks, selectedTaskId, setSelectedTaskId } = useTaskStore();
+  const {
+    tasks,
+    selectedTaskId,
+    hoveredTaskId,
+    setSelectedTaskId,
+    setHoveredTaskId,
+    setIsDetailDrawerOpen,
+  } = useTaskStore();
+
   const resetView = useCameraStore((state) => state.resetView);
   const focusOn = useCameraStore((state) => state.focusOn);
   const clearFocus = useCameraStore((state) => state.clearFocus);
+
+  const [tooltip, setTooltip] = useState<{ task: Task; x: number; y: number } | null>(null);
+
+  const handleDuckHover = (task: Task, isHovered: boolean, mousePos?: { x: number; y: number }) => {
+    if (isHovered && mousePos) {
+      setHoveredTaskId(task.id);
+      setTooltip({ task, x: mousePos.x, y: mousePos.y });
+    } else {
+      setHoveredTaskId(null);
+      setTooltip(null);
+    }
+  };
 
   return (
     <div className="w-full h-full relative" data-testid="duck-canvas-container">
@@ -50,6 +72,51 @@ export function DuckCanvas() {
         <span>左ドラッグ: 回転 (±30°) | 右ドラッグ: パン | ホイール: ズーム</span>
       </div>
 
+      {/* 3Dアヒルホバー時のフロートツールチップ */}
+      {tooltip && (
+        <div
+          data-testid="duck-tooltip"
+          className="fixed pointer-events-none z-50 px-3 py-2 rounded-lg bg-slate-900/95 border border-slate-700 shadow-xl backdrop-blur-md text-xs text-slate-100 min-w-44 max-w-xs transition-opacity duration-75"
+          style={{
+            left: `${Math.min(
+              (typeof window !== 'undefined' ? window.innerWidth : 1024) - 200,
+              tooltip.x + 14
+            )}px`,
+            top: `${Math.min(
+              (typeof window !== 'undefined' ? window.innerHeight : 768) - 80,
+              tooltip.y + 14
+            )}px`,
+          }}
+        >
+          <div className="font-semibold flex items-center gap-1.5 text-slate-100 mb-1">
+            <span role="img" aria-label="duck">
+              🦆
+            </span>
+            <span className="truncate">{tooltip.task.title}</span>
+          </div>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 gap-2">
+            <span>
+              期日: {tooltip.task.dueDate ? (tooltip.task.dueDate.split('T')[0] ?? 'なし') : 'なし'}
+            </span>
+            <span
+              className={`font-medium ${
+                tooltip.task.status === 'done'
+                  ? 'text-emerald-400'
+                  : tooltip.task.status === 'in-progress'
+                    ? 'text-blue-400'
+                    : 'text-amber-400'
+              }`}
+            >
+              {tooltip.task.status === 'todo'
+                ? '未着手'
+                : tooltip.task.status === 'in-progress'
+                  ? '進行中'
+                  : '完了'}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* 3D WebGL Canvas */}
       <Canvas
         camera={{
@@ -59,6 +126,7 @@ export function DuckCanvas() {
         shadows
         onPointerMissed={() => {
           setSelectedTaskId(null);
+          setIsDetailDrawerOpen(false);
           clearFocus();
         }}
       >
@@ -72,10 +140,13 @@ export function DuckCanvas() {
             task={task}
             index={idx}
             isSelected={selectedTaskId === task.id}
+            isHovered={hoveredTaskId === task.id}
             onSelect={(pos) => {
               setSelectedTaskId(task.id);
+              setIsDetailDrawerOpen(true);
               focusOn(pos);
             }}
+            onHover={(isHovered, mousePos) => handleDuckHover(task, isHovered, mousePos)}
           />
         ))}
 

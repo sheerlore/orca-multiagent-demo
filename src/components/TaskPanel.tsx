@@ -1,11 +1,23 @@
 import { useState } from 'react';
 import { Plus, Trash2, CheckCircle2, Circle, Clock, Sparkles } from 'lucide-react';
 import { useTaskStore } from '../store/taskStore';
+import { useCameraStore } from '../store/cameraStore';
+import { getDuckSpawnPosition } from '../utils/sceneMath';
 import type { TaskPriority, TaskStatus } from '../types/task';
 
 export function TaskPanel() {
-  const { tasks, selectedTaskId, addTask, deleteTask, toggleStatus, setSelectedTaskId } =
-    useTaskStore();
+  const {
+    tasks,
+    selectedTaskId,
+    hoveredTaskId,
+    addTask,
+    deleteTask,
+    toggleStatus,
+    setSelectedTaskId,
+    setHoveredTaskId,
+    setIsDetailDrawerOpen,
+  } = useTaskStore();
+  const focusOn = useCameraStore((state) => state.focusOn);
 
   const [newTitle, setNewTitle] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('medium');
@@ -143,14 +155,26 @@ export function TaskPanel() {
         ) : (
           filteredTasks.map((task) => {
             const isSelected = selectedTaskId === task.id;
+            const isHovered = hoveredTaskId === task.id;
             return (
               <div
                 key={task.id}
-                onClick={() => setSelectedTaskId(task.id)}
+                data-testid={`task-item-${task.id}`}
+                onMouseEnter={() => setHoveredTaskId(task.id)}
+                onMouseLeave={() => setHoveredTaskId(null)}
+                onClick={() => {
+                  setSelectedTaskId(task.id);
+                  setIsDetailDrawerOpen(true);
+                  const taskIndex = tasks.findIndex((t) => t.id === task.id);
+                  const pos = getDuckSpawnPosition(task.status, taskIndex >= 0 ? taskIndex : 0);
+                  focusOn(pos);
+                }}
                 className={`p-3 rounded-lg border transition-all cursor-pointer ${
                   isSelected
                     ? 'bg-slate-800/90 border-amber-400 shadow-md ring-1 ring-amber-400/50'
-                    : 'bg-slate-800/50 border-slate-700/60 hover:border-slate-600'
+                    : isHovered
+                      ? 'bg-slate-800/70 border-amber-400/60 shadow-sm ring-1 ring-amber-400/30'
+                      : 'bg-slate-800/50 border-slate-700/60 hover:border-slate-600'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">

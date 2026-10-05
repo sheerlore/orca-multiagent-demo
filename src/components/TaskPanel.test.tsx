@@ -1,11 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TaskPanel } from './TaskPanel';
 import { useTaskStore } from '../store/taskStore';
+import { useCameraStore } from '../store/cameraStore';
+import { getDuckSpawnPosition } from '../utils/sceneMath';
 
 describe('TaskPanel Component', () => {
   beforeEach(() => {
+    useCameraStore.setState({
+      resetTrigger: 0,
+      targetFocus: null,
+    });
     useTaskStore.setState({
       tasks: [
         {
@@ -22,6 +28,8 @@ describe('TaskPanel Component', () => {
         },
       ],
       selectedTaskId: null,
+      hoveredTaskId: null,
+      isDetailDrawerOpen: false,
     });
   });
 
@@ -92,5 +100,35 @@ describe('TaskPanel Component', () => {
     await user.click(doneTab);
     expect(screen.queryByText('未完了タスク')).not.toBeInTheDocument();
     expect(screen.getByText('完了済タスク')).toBeInTheDocument();
+  });
+
+  describe('3D空間連動インタラクション (ホバー & クリック)', () => {
+    it('リストアイテムのマウスホバーでhoveredTaskIdが設定・解除される', () => {
+      render(<TaskPanel />);
+      const item = screen.getByTestId('task-item-test-1');
+
+      fireEvent.mouseEnter(item);
+      expect(useTaskStore.getState().hoveredTaskId).toBe('test-1');
+
+      fireEvent.mouseLeave(item);
+      expect(useTaskStore.getState().hoveredTaskId).toBeNull();
+    });
+
+    it('リストアイテムをクリックするとカメラフォーカス(focusOn)が呼ばれ、ドロワーが開く', async () => {
+      const user = userEvent.setup();
+      const focusOnSpy = vi.spyOn(useCameraStore.getState(), 'focusOn');
+
+      render(<TaskPanel />);
+      const item = screen.getByTestId('task-item-test-1');
+
+      await user.click(item);
+
+      const expectedPos = getDuckSpawnPosition('todo', 0);
+      expect(focusOnSpy).toHaveBeenCalledWith(expectedPos);
+      expect(useTaskStore.getState().selectedTaskId).toBe('test-1');
+      expect(useTaskStore.getState().isDetailDrawerOpen).toBe(true);
+
+      focusOnSpy.mockRestore();
+    });
   });
 });

@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DuckModel } from './DuckModel';
 import { Duck } from './Duck';
 import { DuckTitleTag } from './DuckTitleTag';
+import { HoverIndicator } from './HoverIndicator';
 import { Headband } from './accessories/Headband';
 import { Crown } from './accessories/Crown';
 import { FloatRing } from './accessories/FloatRing';
@@ -39,7 +40,8 @@ describe('DuckModel & Accessories', () => {
       if (
         msg.includes('is using incorrect casing') ||
         msg.includes('is unrecognized in this browser') ||
-        msg.includes('React does not recognize the')
+        msg.includes('React does not recognize the') ||
+        msg.includes('for a non-boolean attribute')
       ) {
         return;
       }
@@ -253,8 +255,41 @@ describe('DuckModel & Accessories', () => {
     });
   });
 
+  describe('ホバー・注目連動とアウトライン発光 (SPEC 3.4.2)', () => {
+    it('isHovered=trueのとき、アウトラインメッシュと頭上「▼」インジケーターが表示されemissive="#facc15"になる', () => {
+      const { container } = render(
+        <DuckModel status="todo" duckColor="#facc15" isHovered={true} />
+      );
+
+      expect(screen.getByTestId('duck-outline')).toBeInTheDocument();
+      expect(screen.getByTestId('hover-indicator')).toBeInTheDocument();
+
+      const bodyMaterial = container.querySelector(
+        '[data-testid="duck-body"] meshstandardmaterial'
+      );
+      expect(bodyMaterial?.getAttribute('emissive')).toBe('#facc15');
+    });
+
+    it('isAttention=trueのとき、頭上「▼」インジケーターが表示される', () => {
+      render(<DuckModel status="todo" isAttention={true} />);
+      expect(screen.getByTestId('hover-indicator')).toBeInTheDocument();
+    });
+
+    it('通常時(ホバーも選択もなし)はアウトラインメッシュもHoverIndicatorも表示されない', () => {
+      render(<DuckModel status="todo" isSelected={false} isHovered={false} isAttention={false} />);
+      expect(screen.queryByTestId('duck-outline')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('hover-indicator')).not.toBeInTheDocument();
+    });
+
+    it('HoverIndicatorコンポーネントが単体でレンダリング可能', () => {
+      render(<HoverIndicator />);
+      expect(screen.getByTestId('hover-indicator')).toBeInTheDocument();
+      expect(screen.getByText('▼')).toBeInTheDocument();
+    });
+  });
+
   describe('Duckエンティティコンポーネント連携', () => {
-    it('DuckコンポーネントがクリックされたときonSelectコールバックが発火する', async () => {
+    it('DuckコンポーネントがクリックされたときonSelectコールバックが発火し「クワッ！」吹き出しが出る', async () => {
       const user = userEvent.setup();
       const onSelect = vi.fn();
 
@@ -265,6 +300,22 @@ describe('DuckModel & Accessories', () => {
 
       await user.click(duckEntity);
       expect(onSelect).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('quack-popup')).toBeInTheDocument();
+      expect(screen.getByText('クワッ！')).toBeInTheDocument();
+    });
+
+    it('DuckコンポーネントのホバーでonHoverコールバックが発火する', () => {
+      const onHover = vi.fn();
+      render(
+        <Duck task={baseTask} index={0} isSelected={false} onSelect={vi.fn()} onHover={onHover} />
+      );
+
+      const duckEntity = screen.getByTestId(`duck-${baseTask.id}`);
+      fireEvent.pointerOver(duckEntity, { clientX: 100, clientY: 150 });
+      expect(onHover).toHaveBeenCalledWith(true, { x: 100, y: 150 });
+
+      fireEvent.pointerOut(duckEntity);
+      expect(onHover).toHaveBeenCalledWith(false);
     });
   });
 });
