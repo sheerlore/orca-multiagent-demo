@@ -32,6 +32,15 @@ describe('cameraStore', () => {
     expect(useCameraStore.getState().resetTrigger).toBe(2);
   });
 
+  it('increments resetTrigger and clears targetFocus on resetCamera()', () => {
+    useCameraStore.getState().focusOn([1, 2, 3]);
+    expect(useCameraStore.getState().targetFocus).toEqual([1, 2, 3]);
+
+    useCameraStore.getState().resetCamera();
+    expect(useCameraStore.getState().resetTrigger).toBe(1);
+    expect(useCameraStore.getState().targetFocus).toBeNull();
+  });
+
   it('updates targetFocus on focusOn() and clears it on clearFocus()', () => {
     useCameraStore.getState().focusOn([-4.5, 0.45, 1.2]);
     expect(useCameraStore.getState().targetFocus).toEqual([-4.5, 0.45, 1.2]);

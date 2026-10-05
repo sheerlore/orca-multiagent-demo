@@ -12,6 +12,7 @@ export interface CameraState {
 
   // アクション
   resetView: () => void;
+  resetCamera: () => void;
   focusOn: (position: [number, number, number]) => void;
   clearFocus: () => void;
 }
@@ -23,6 +24,12 @@ export const useCameraStore = create<CameraState>((set) => ({
   defaultTarget: ISOMETRIC_CONFIG.DEFAULT_TARGET,
 
   resetView: () =>
+    set((state) => ({
+      resetTrigger: state.resetTrigger + 1,
+      targetFocus: null,
+    })),
+
+  resetCamera: () =>
     set((state) => ({
       resetTrigger: state.resetTrigger + 1,
       targetFocus: null,

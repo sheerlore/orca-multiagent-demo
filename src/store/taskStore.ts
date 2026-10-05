@@ -139,6 +139,7 @@ export interface TaskState {
   ) => Task;
   updateTask: (id: string, updates: Partial<Omit<Task, 'id' | 'createdAt'>>) => void;
   deleteTask: (id: string) => void;
+  restoreTask: (task: Task) => void;
   toggleStatus: (id: string) => void;
   setSelectedTaskId: (id: string | null) => void;
   setHoveredTaskId: (id: string | null) => void;
@@ -248,6 +249,17 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         isDetailDrawerOpen: isSelected ? false : state.isDetailDrawerOpen,
         hoveredTaskId: state.hoveredTaskId === id ? null : state.hoveredTaskId,
       };
+    });
+  },
+
+  restoreTask: (task) => {
+    set((state) => {
+      if (state.tasks.some((t) => t.id === task.id)) {
+        return state;
+      }
+      const updatedTasks = [task, ...state.tasks];
+      saveToStorage(updatedTasks, state.settings);
+      return { tasks: updatedTasks };
     });
   },
 
