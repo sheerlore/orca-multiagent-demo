@@ -231,6 +231,34 @@ describe('duckAI utility & state machine', () => {
       expect(pose.leftFootRotZ).toBe(0);
       expect(pose.rightFootRotZ).toBe(0);
     });
+
+    it('urgencyLevel="critical" 時は激しい羽ばたき角が生成され、ロッキング・ボビングが増幅される', () => {
+      const normalPose = calculateWaddlePose(Math.PI / 2, 'normal', 0.1);
+      const criticalPose = calculateWaddlePose(Math.PI / 2, 'critical', 0.1);
+
+      expect(normalPose.wingFlapAngle).toBe(0);
+      expect(normalPose.leftWingRotX).toBe(0);
+      expect(normalPose.rightWingRotX).toBe(0);
+
+      // critical時は羽ばたき角が発生し、左右で逆位相になる
+      expect(Math.abs(criticalPose.wingFlapAngle)).toBeGreaterThan(0);
+      expect(criticalPose.leftWingRotX).toBe(criticalPose.wingFlapAngle);
+      expect(criticalPose.rightWingRotX).toBe(-criticalPose.wingFlapAngle);
+      // 翼の開きZ
+      expect(criticalPose.leftWingRotZ).toBeGreaterThan(0.1);
+
+      // ロッキング・ボビングの増幅
+      expect(Math.abs(criticalPose.bodyRoll)).toBeGreaterThan(Math.abs(normalPose.bodyRoll));
+      expect(criticalPose.bobY).toBeGreaterThan(normalPose.bobY);
+    });
+
+    it('IDLE状態でも critical 時はその場で羽ばたきと速い首振り・尾羽フリフリを行う', () => {
+      const normalIdle = calculateIdlePose(1.0, 0, 'normal');
+      const criticalIdle = calculateIdlePose(1.0, 0, 'critical');
+
+      expect(normalIdle.wingFlapAngle).toBe(0);
+      expect(Math.abs(criticalIdle.wingFlapAngle)).toBeGreaterThan(0);
+    });
   });
 
   describe('DuckPositionRegistry', () => {

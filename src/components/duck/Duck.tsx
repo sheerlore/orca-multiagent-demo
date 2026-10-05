@@ -5,7 +5,9 @@ import type { Task } from '../../types/task';
 import { getDuckSpawnPosition } from '../../utils/sceneMath';
 import { DuckModel } from './DuckModel';
 import { DuckRipple } from './DuckRipple';
+import { DuckEmotionEffect } from './DuckEmotionEffect';
 import { useDuckAI } from './useDuckAI';
+import { calculateUrgency } from '../../utils/urgency';
 
 export interface DuckProps {
   task: Task;
@@ -22,6 +24,7 @@ export interface DuckProps {
  * 境界制御およびアヒル同士の反発制御を行います。
  * マウスホバー・クリックによるアウトライン発光、吹き出しホップ跳躍演出、最新座標フォーカス、
  * およびタスク詳細ドロワーとの双方向連動を提供します。
+ * 期限(DueDate)に応じた歩行速度・羽ばたきアニメーション・3D感情エフェクトを連動表示します。
  */
 export function Duck({
   task,
@@ -37,9 +40,17 @@ export function Duck({
   const tailRef = useRef<THREE.Mesh>(null);
   const leftFootRef = useRef<THREE.Mesh>(null);
   const rightFootRef = useRef<THREE.Mesh>(null);
+  const leftWingRef = useRef<THREE.Mesh>(null);
+  const rightWingRef = useRef<THREE.Mesh>(null);
   const rippleRef = useRef<THREE.Mesh>(null);
 
   const [isQuacking, setIsQuacking] = useState(false);
+
+  // 期限とステータスから緊急度情報を取得 (docs/SPEC.md 3.3.4)
+  const urgency = useMemo(
+    () => calculateUrgency(task.dueDate, task.status),
+    [task.dueDate, task.status]
+  );
 
   // ステータスに応じた初期スポーン位置
   const [baseX, baseY, baseZ] = useMemo(
@@ -57,6 +68,8 @@ export function Duck({
     tailRef,
     leftFootRef,
     rightFootRef,
+    leftWingRef,
+    rightWingRef,
     rippleRef,
   });
 
@@ -106,10 +119,15 @@ export function Duck({
         tailRef={tailRef}
         leftFootRef={leftFootRef}
         rightFootRef={rightFootRef}
+        leftWingRef={leftWingRef}
+        rightWingRef={rightWingRef}
       />
 
       {/* 水泳時（done）の足元波紋エフェクト */}
       {task.status === 'done' && <DuckRipple rippleRef={rippleRef} />}
+
+      {/* 期限連動 3D 感情エフェクト (panicked / critical / overdue) */}
+      <DuckEmotionEffect urgencyLevel={urgency.urgencyLevel} />
 
       {/* クリック時の「クワッ！」吹き出しポップアップ */}
       {isQuacking && (

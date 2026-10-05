@@ -20,6 +20,8 @@ export interface DuckModelProps {
   headRef?: React.Ref<THREE.Group>;
   leftFootRef?: React.Ref<THREE.Mesh>;
   rightFootRef?: React.Ref<THREE.Mesh>;
+  leftWingRef?: React.Ref<THREE.Mesh>;
+  rightWingRef?: React.Ref<THREE.Mesh>;
 }
 
 /**
@@ -27,7 +29,7 @@ export interface DuckModelProps {
  * まるい胴体、頭、くちばし（オレンジ）、左右の小さな翼、左右の足（オレンジ）からなる階層グループを構成します。
  * タスク固有の duckColor をマテリアル色に動的反映し、ステータスに応じたアクセサリーを描画します。
  * ホバー・注目時にはアウトライン発光、注目ポーズ、および頭上「▼」インジケーター（HoverIndicator）を表示します。
- * AIによる歩行・首振り・足振り用 Ref（modelGroupRef, tailRef, headRef, leftFootRef, rightFootRef）を受け取ります。
+ * AIによる歩行・首振り・足振り・羽ばたき用 Ref を受け取ります。
  */
 export function DuckModel({
   status: propStatus,
@@ -43,6 +45,8 @@ export function DuckModel({
   headRef,
   leftFootRef,
   rightFootRef,
+  leftWingRef,
+  rightWingRef,
 }: DuckModelProps) {
   const status = propStatus ?? task?.status ?? 'todo';
   const duckColor = propDuckColor ?? task?.duckColor ?? '#facc15';
@@ -155,6 +159,7 @@ export function DuckModel({
       {/* 左右の小さな翼（注目時は少し広げる） */}
       <group data-testid="duck-wings">
         <mesh
+          ref={leftWingRef}
           data-testid="duck-wing-left"
           geometry={duckGeometries.wing}
           position={[0.02, 0.08, 0.36]}
@@ -171,6 +176,7 @@ export function DuckModel({
           />
         </mesh>
         <mesh
+          ref={rightWingRef}
           data-testid="duck-wing-right"
           geometry={duckGeometries.wing}
           position={[0.02, 0.08, -0.36]}

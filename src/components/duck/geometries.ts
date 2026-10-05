@@ -35,4 +35,10 @@ export const duckGeometries = {
 
   // キラキラ星（多面体パーティクル）
   sparkleStar: new THREE.OctahedronGeometry(0.06, 0),
+
+  // 感情エフェクト用ジオメトリ（汗マーク水滴、湯気リング、怒りマーク）
+  sweatDrop: new THREE.ConeGeometry(0.045, 0.12, 6),
+  sweatCap: new THREE.SphereGeometry(0.045, 6, 6),
+  steamRing: new THREE.TorusGeometry(0.07, 0.02, 6, 12),
+  angerCrossBar: new THREE.BoxGeometry(0.12, 0.025, 0.025),
 };

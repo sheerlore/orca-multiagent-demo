@@ -8,6 +8,7 @@ import {
   type DuckAIState,
   duckPositionRegistry,
 } from '../../utils/duckAI';
+import { calculateUrgency, type UrgencyInfo } from '../../utils/urgency';
 
 export interface UseDuckAIOptions {
   task: Task;
@@ -18,12 +19,16 @@ export interface UseDuckAIOptions {
   tailRef?: React.RefObject<THREE.Mesh | null>;
   leftFootRef?: React.RefObject<THREE.Mesh | null>;
   rightFootRef?: React.RefObject<THREE.Mesh | null>;
+  leftWingRef?: React.RefObject<THREE.Mesh | null>;
+  rightWingRef?: React.RefObject<THREE.Mesh | null>;
   rippleRef?: React.RefObject<THREE.Mesh | null>;
 }
 
 export interface UseDuckAIReturn {
   controller: DuckAIController;
   getAIState: () => DuckAIState;
+  urgency: UrgencyInfo;
+  getUrgency: () => UrgencyInfo;
 }
 
 /**
@@ -40,11 +45,18 @@ export function useDuckAI({
   tailRef,
   leftFootRef,
   rightFootRef,
+  leftWingRef,
+  rightWingRef,
   rippleRef,
 }: UseDuckAIOptions): UseDuckAIReturn {
   const initialPos = useMemo(
     () => getDuckSpawnPosition(task.status, index),
     [task.status, index]
+  );
+
+  const urgency = useMemo(
+    () => calculateUrgency(task.dueDate, task.status),
+    [task.dueDate, task.status]
   );
 
   // 初期化時のみコントローラーを生成し、以降は再レンダリングを発生させず同一参照を維持
@@ -53,10 +65,16 @@ export function useDuckAI({
       new DuckAIController({
         id: task.id,
         status: task.status,
+        dueDate: task.dueDate,
         index,
         initialPos,
       })
   );
+
+  // 期限またはステータス更新時にコントローラーのurgencyも同期
+  useEffect(() => {
+    controller.setUrgency(urgency);
+  }, [urgency, controller]);
 
   // タスクステータス変更時の同期（草原 <-> 池）
   useEffect(() => {
@@ -145,10 +163,22 @@ export function useDuckAI({
         material.opacity = Math.max(0, (1 - progress) * 0.35);
       }
     }
+
+    // 7. 羽ばたき（wing flap - critical時は激しい超高速羽ばたき）
+    if (leftWingRef?.current) {
+      leftWingRef.current.rotation.x = pose.leftWingRotX;
+      leftWingRef.current.rotation.z = pose.leftWingRotZ;
+    }
+    if (rightWingRef?.current) {
+      rightWingRef.current.rotation.x = pose.rightWingRotX;
+      rightWingRef.current.rotation.z = pose.rightWingRotZ;
+    }
   });
 
   return {
     controller,
     getAIState: () => controller.state,
+    urgency,
+    getUrgency: () => urgency,
   };
 }
